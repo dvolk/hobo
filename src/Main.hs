@@ -1,81 +1,69 @@
-{-# OPTIONS_GHC -Wall #-}
-
 module Main where
+
+import Debug.Trace
 
 import Linear
 import SpatialMath
 import Vis
 
-data Robot = Robot
-     { start :: V3 Float
-     , arms :: [Arm]
-     }
+import Robot
+import Arm
 
-data Arm = Arm
-     { length :: Float
-     , radius :: Float
-     , color  :: Color
-     , rot :: Euler Float
-     }
+-- axes: Z - negative is up
+--       Y - negative is in
+--       X - negative is left
 
-drawArm :: V3 Float -> Arm -> VisObject Float
-drawArm from (Arm length radius color rot) =
-	Trans from $ RotEulerRad rot $ Cylinder (-length, radius) color
+cur :: Float -> VisObject Float
+cur t =
+   let x = case () of
+            _
+             | t >= 0     && t <= 13.15 -> t / 15
+	     | t >= 13.15 && t <= 39.45 -> (26.30 - t) / 15
+	     | otherwise                -> -13.15/15
 
-testArm :: Arm
-testArm = Arm 1 0.5 red (Euler 0 0 0)
+       y = case () of
+            _
+	     | t >= 0     && t <= 13.15 -> 0
+	     | t >= 13.15 && t <= 39.45 -> t - 13.15
+	     | otherwise                -> 39.45 - 13.15
 
-armEndPoint :: M33 Float -> V3 Float -> Arm -> (V3 Float, M33 Float)
-armEndPoint prevrot prev (Arm len rad col rot) =
-	   let rot33 = dcmOfEuler321 rot !*! prevrot
-	       hom = prev
-	       from = point $ prev
-	   in (normalizePoint ((mkTransformationMat rot33 hom) !* from), rot33)
+       arm1 = Arm 2   0.5  red    (Euler y 0 0)
+       arm2 = Arm 1.8 0.25 white  (rot arm1 `addE` Euler 0 x 0)
+       arm3 = Arm 1.6 0.12 yellow (rot arm2 `addE` Euler 0 x 0)
+       arm4 = Arm 1.6 0.09 white  (rot arm3 `addE` Euler 0 x 0)
+       arm5 = Arm 1.4 0.06 blue   (rot arm4 `addE` Euler 0 x 0)
 
-robot = Robot (V3 0 0 0) [testArm, testArm2]
-	   
-testArm2 :: Arm	   
-testArm2 = Arm 3 0.3 white (Euler 0 1 0)
+       arm1start = V3 0 0 0
+       arm1end = armEndPoint arm1start arm1
+       arm2end = armEndPoint arm1end arm2
+       arm3end = armEndPoint arm2end arm3
+       arm4end = armEndPoint arm3end arm4
+       arm5end = armEndPoint arm4end arm5
 
-helloWorld :: VisObject Float
-helloWorld = 
-	(Text2d "Hello World" (100, 100)
-	Helvetica12
-	white)
-
-{-
-   Trans V3 parameters: Z - up down, negative is up
-                        Y - in out, negative is in
-                        X - left right, negative is left
--}
-
-cyl = Trans (V3 0 (-10) (-5)) $ RotEulerRad (Euler 0 1 0) $ Cylinder (-5, 0.5) white
-
-cyl2 = Trans (V3 0 (-10) (-5)) (Cylinder (5, 1) red)
-
-ground = Trans (V3 0 0 0) (Plane (V3 0 0 1) yellow cyan)
-
-sph = Trans (V3 0 (-10) (-5)) $ Sphere 1 Solid red
-
-cur =
-   let arm1start = (V3 0 0 0)
-       arm1 = Arm 2 0.5 red (Euler 0 0 0)
-       (arm1end, arm1rot) = armEndPoint eye3 arm1start arm1
-       arm2 = Arm 3 0.3 white (Euler 0 0.6 0)
-       (arm2end, arm2rot) = armEndPoint arm1rot arm1end arm2
-       arm3 = Arm 2 0.1 yellow (Euler 0 0.35 0)
-       (arm3end, arm3rot) = armEndPoint arm2rot arm2end arm3
-       arm4 = Arm 1 0.1 blue (Euler 0 0.2 0)
+       joint1 = Trans arm1end $ Sphere 0.45 Solid red
+       joint2 = Trans arm2end $ Sphere 0.20 Solid white
+       joint3 = Trans arm3end $ Sphere 0.10 Solid yellow
+       joint4 = Trans arm4end $ Sphere 0.07 Solid white
+       joint5 = Trans arm5end $ Sphere 0.20 Solid blue
 
        da1 = drawArm arm1start arm1
        da2 = drawArm arm1end arm2
        da3 = drawArm arm2end arm3
        da4 = drawArm arm3end arm4
+       da5 = drawArm arm4end arm5
 
-   in VisObjects [ cyl, sph, cyl2, helloWorld, ground --,drawArm (V3 0 0 0) testArm, drawArm (armEndPoint (V3 0 0 0) testArm) testArm2
-              , da1, da2, da3, da4]
+       ground = Plane (V3 0 0 1) yellow cyan
+
+       text1 = Text2d ("naklon: " ++ show (round $ x * 180/pi) ++ "\176") (50, 50)  TimesRoman24 white
+       text2 = Text2d ("rotacija: "  ++ show (round $ y * 180/pi) ++ "\176") (50, 100) TimesRoman24 white
+
+       robo = RotEulerDeg (Euler 0 180 0) $ VisObjects [da5, da4, da3, da2, da1, joint1, joint2, joint3, joint4, joint5, text1, text2]
+
+   in VisObjects [ ground
+                 , robo
+		 ]
 
 main :: IO ()
-main = display Nothing
-	 	"Hello World"
+main = animate (Just ((800, 600), (0,0)))
+	 	"Hobo robo"
 		cur
